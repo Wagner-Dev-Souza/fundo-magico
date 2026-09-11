@@ -52,7 +52,14 @@ body {
   border: 1px solid #474646;
   border-radius: 8px;
   font-size: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .form-group textarea:focus {
@@ -81,6 +88,32 @@ body {
     transform: translateY(-2px);
 }
 
+.form-group .btn-magic:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+}
+
+/* Mensagens de status (carregando / sucesso / erro) */
+.status {
+    margin-top: 12px;
+    min-height: 20px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.status--info {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.status--success {
+    color: #5eead4;
+}
+
+.status--error {
+    color: #ff8080;
+}
+
 .preview-card {
     display: none;
 }
@@ -101,6 +134,34 @@ body {
 .code-title {
     font-size: 20px;
     margin-bottom: 16px;
+}
+
+.code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.code-header .code-title {
+    margin-bottom: 16px;
+}
+
+.btn-copy {
+    background-color: transparent;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-copy:hover {
+    border-color: #a655f7;
+    color: #a655f7;
 }
 
 .code-block {

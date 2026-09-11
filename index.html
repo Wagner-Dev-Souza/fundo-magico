@@ -22,10 +22,12 @@
 			<section class="card main-card">
 				<h2 class="card-header">Descreva o background que você deseja</h2>
 				<form class="form-group">
-					<textarea id="description" placeholder="Ex: um gradiente que vai do azul claro para o azul escuro." rows="5"></textarea>
-					<button id="generate-btn" class="btn-magic">
+					<label class="form-label" for="description">Descreva o background</label>
+					<textarea id="description" placeholder="Ex: um gradiente que vai do azul claro para o azul escuro." rows="5" aria-describedby="status-message"></textarea>
+					<button id="generate-btn" class="btn-magic" type="submit">
 						<span id="btn-text">Gerar Background Mágico</span>
 					</button>
+					<p id="status-message" class="status" role="status" aria-live="polite"></p>
 				</form>
 			</section>
 
@@ -33,11 +35,17 @@
 
 			<section id="code-output" class="code-grid">
 				<div class="card code-card">
-					<h3 class="code-title">Código HTML</h3>
+					<div class="code-header">
+						<h3 class="code-title">Código HTML</h3>
+						<button id="copy-html" class="btn-copy" type="button">Copiar</button>
+					</div>
 					<pre id="html-code" class="code-block"></pre>
 				</div>
 				<div class="card code-card">
-					<h3 class="code-title">Código CSS</h3>
+					<div class="code-header">
+						<h3 class="code-title">Código CSS</h3>
+						<button id="copy-css" class="btn-copy" type="button">Copiar</button>
+					</div>
 					<pre id="css-code" class="code-block"></pre>
 				</div>
 			</section>

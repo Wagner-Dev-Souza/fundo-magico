@@ -1,98 +1,250 @@
 document.addEventListener("DOMContentLoaded", function () {
 	// Objetivo:
-	// Enviar um texto de um formulário para uma API do n8n e exibir o resultado o código html, css e colocar a animação no fundo da tela do site.
+	// Enviar a descrição do usuário para o webhook do n8n, que devolve
+	// HTML + CSS gerados por IA. O CSS é aplicado na página (fundo mágico),
+	// o HTML vai para o preview e ambos aparecem nas caixas de código.
 
-	// Passos:
-	// 1. No JavaScript, pegar o evento de submit do formulário para evitar o recarregamento da página.
+	// ---------------------------------------------------------------------
+	// Configuração
+	// ---------------------------------------------------------------------
+
+	// URL do webhook. Centralizada aqui para facilitar trocar de ambiente.
+	const WEBHOOK_URL = "https://n8n.srv830193.hstgr.cloud/webhook/4096b767-f3fb-4244-bb3c-2df7994c2262";
+
+	// Tempo máximo de espera pela resposta da IA (ms). Evita que a interface
+	// fique travada para sempre quando o workflow demora ou não responde.
+	const REQUEST_TIMEOUT_MS = 60000;
 
 	const form = document.querySelector(".form-group");
 	const input = document.getElementById("description");
 	const htmlCode = document.getElementById("html-code");
 	const cssCode = document.getElementById("css-code");
 	const preview = document.getElementById("preview-section");
+	const statusEl = document.getElementById("status-message");
+	const generateBtn = document.getElementById("generate-btn");
+	const btnText = document.getElementById("btn-text");
+	const copyHtmlBtn = document.getElementById("copy-html");
+	const copyCssBtn = document.getElementById("copy-css");
+
+	const STYLE_TAG_ID = "dynamic-style";
+
+	// ---------------------------------------------------------------------
+	// Helpers
+	// ---------------------------------------------------------------------
+
+	/** Remove <script> de HTML gerado por IA antes de injetar na página. */
+	function sanitizeHtml(html) {
+		if (!html) {
+			return "";
+		}
+		return html.replace(/<script[\s\S]*?<\/script>/gi, "");
+	}
+
+	/**
+	 * Extrai { code, style } dos formatos mais comuns devolvidos pelo n8n.
+	 * Aceita:
+	 *   1) { code, style }                (contrato documentado)
+	 *   2) { html, css }                  (nomes alternativos)
+	 *   3) [ { ... } ]                    (saída padrão de Webhook no n8n)
+	 *   4) { data: { ... } }              (resposta embrulhada)
+	 *   5) string contendo JSON
+	 * Retorna null quando não há nada aproveitável.
+	 */
+	function parsePayload(raw) {
+		let data = raw;
+
+		if (typeof data === "string") {
+			try {
+				data = JSON.parse(data);
+			} catch (error) {
+				return null;
+			}
+		}
+
+		// Webhook do n8n costuma devolver um array com um item.
+		if (Array.isArray(data)) {
+			data = data[0];
+		}
+
+		// Alguns workflows embrulham o resultado em { data: ... }.
+		if (
+			data &&
+			typeof data === "object" &&
+			typeof data.data === "object" &&
+			data.data !== null &&
+			!data.code &&
+			!data.html
+		) {
+			data = data.data;
+		}
+
+		if (!data || typeof data !== "object") {
+			return null;
+		}
+
+		const code = data.code || data.html || "";
+		const style = data.style || data.css || "";
+
+		if (!code && !style) {
+			return null;
+		}
+
+		return { code: code, style: style };
+	}
+
+	/** Mostra uma mensagem de status para o usuário. type: "info" | "error" | "success" */
+	function setStatus(message, type) {
+		if (!statusEl) {
+			return;
+		}
+		statusEl.textContent = message || "";
+		statusEl.className = "status" + (type ? " status--" + type : "");
+	}
+
+	/** Liga/desliga o estado de carregamento do formulário. */
+	function setLoading(isLoading) {
+		if (generateBtn) {
+			generateBtn.disabled = isLoading;
+			generateBtn.setAttribute("aria-busy", isLoading ? "true" : "false");
+		}
+		if (btnText) {
+			btnText.textContent = isLoading ? "Gerando Background..." : "Gerar Background Mágico";
+		}
+	}
+
+	/** Injetar (ou substituir) a tag <style> com o CSS gerado. */
+	function applyStyle(style) {
+		let styleTag = document.getElementById(STYLE_TAG_ID);
+
+		if (styleTag) {
+			styleTag.remove();
+		}
+
+		if (!style) {
+			return;
+		}
+
+		styleTag = document.createElement("style");
+		styleTag.id = STYLE_TAG_ID;
+		styleTag.textContent = style;
+		document.head.appendChild(styleTag);
+	}
+
+	/** Remove o fundo gerado anteriormente e limpa o preview. */
+	function clearResult() {
+		applyStyle("");
+		preview.innerHTML = "";
+		preview.style.display = "none";
+	}
+
+	/** Copia o conteúdo de um elemento para a área de transferência. */
+	async function copyToClipboard(element, button) {
+		if (!element || !element.textContent) {
+			return;
+		}
+		try {
+			await navigator.clipboard.writeText(element.textContent);
+			const original = button.textContent;
+			button.textContent = "Copiado!";
+			setTimeout(function () {
+				button.textContent = original;
+			}, 1500);
+		} catch (error) {
+			console.error("Não foi possível copiar:", error);
+		}
+	}
+
+	if (copyHtmlBtn) {
+		copyHtmlBtn.addEventListener("click", function () {
+			copyToClipboard(htmlCode, copyHtmlBtn);
+		});
+	}
+
+	if (copyCssBtn) {
+		copyCssBtn.addEventListener("click", function () {
+			copyToClipboard(cssCode, copyCssBtn);
+		});
+	}
+
+	// ---------------------------------------------------------------------
+	// Fluxo principal
+	// ---------------------------------------------------------------------
 
 	form.addEventListener("submit", async function (event) {
 		event.preventDefault();
 
-		// 2. Obter o valor digitado pelo usuário no campo de texto.
-
 		const description = input.value.trim();
 
 		if (!description) {
+			setStatus("Descreva o background que você deseja antes de gerar.", "error");
+			input.focus();
 			return;
 		}
 
 		setLoading(true);
+		setStatus("Gerando seu background mágico... isso pode levar alguns segundos.", "info");
+		clearResult();
+
+		// Timeout: aborta a requisição se o workflow não responder a tempo.
+		const controller = new AbortController();
+		const timeoutId = setTimeout(function () {
+			controller.abort();
+		}, REQUEST_TIMEOUT_MS);
 
 		try {
-			// 4. Fazer uma requisição HTTP (POST) para a API do n8n, enviando o texto do formulário no corpo da requisição em formato JSON.
-			const response = await fetch("https://n8n.srv830193.hstgr.cloud/webhook/4096b767-f3fb-4244-bb3c-2df7994c2262", {
+			const response = await fetch(WEBHOOK_URL, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 				},
-				body: JSON.stringify({ description }),
+				body: JSON.stringify({ description: description }),
+				signal: controller.signal,
 			});
 
-			// 5. Receber a resposta da API do n8n (esperando um JSON com o código HTML/CSS do background).
-			// Converte a resposta da API em um objeto JSON
+			// Bug corrigido: sem esta checagem, respostas de erro (ex.: 500 do
+			// n8n) eram tratadas como sucesso e a página ficava vazia sem aviso.
+			if (!response.ok) {
+				throw new Error("O servidor respondeu com erro HTTP " + response.status + ".");
+			}
+
 			const data = await response.json();
+			const result = parsePayload(data);
 
-			// 6. Se a resposta for válida, exibir o código HTML/CSS retornado na tela:
-			//    - Mostrar o HTML e o CSS gerado em uma área de preview.
-			//    - Inserir o CSS retornado dinamicamente na página para aplicar o background.
-			// Exibe o código HTML gerado no elemento de texto (código-fonte)
-			htmlCode.textContent = data.code || "";
+			if (!result) {
+				throw new Error("A resposta do servidor não contém HTML/CSS no formato esperado.");
+			}
 
-			// Exibe o código CSS gerado no elemento de texto (código-fonte)
-			cssCode.textContent = data.style || "";
+			// Exibe o código gerado.
+			htmlCode.textContent = result.code;
+			cssCode.textContent = result.style;
 
-			// Mostra a seção de preview tornando-a visível
+			// Renderiza o preview (sem <script>, por segurança).
+			preview.innerHTML = sanitizeHtml(result.code);
 			preview.style.display = "block";
 
-			// Insere o código HTML gerado no preview para visualização imediata
-			preview.innerHTML = data.code || "";
+			// Aplica o CSS gerado no documento.
+			applyStyle(result.style);
 
-			// Tenta obter uma tag <style> existente com id "dynamic-style"
-			let styleTag = document.getElementById("dynamic-style");
-
-			// Se uma tag de estilo anterior existir, remove-a para evitar duplicação
-			if (styleTag) {
-				styleTag.remove();
-			}
-
-			// Se o CSS foi retornado pela API, cria e injeta um novo <style> no documento
-			if (data.style) {
-				// Cria uma nova tag <style>
-				styleTag = document.createElement("style");
-
-				// Define um id único para identificar a tag mais tarde
-				styleTag.id = "dynamic-style";
-
-				// Insere o CSS retornado pela API no conteúdo da tag
-				styleTag.textContent = data.style;
-
-				// Adiciona a tag <style> no head do documento para aplicar os estilos
-				document.head.appendChild(styleTag);
-			}
+			setStatus("Background gerado com sucesso!", "success");
 		} catch (error) {
+			// Mantém a página consistente: o fundo antigo não fica preso na tela.
+			clearResult();
+			htmlCode.textContent = "";
+			cssCode.textContent = "";
+
+			if (error.name === "AbortError") {
+				setStatus("A geração demorou demais e foi cancelada. Tente novamente.", "error");
+			} else if (error instanceof TypeError) {
+				// Falha de rede / CORS / servidor inacessível.
+				setStatus("Não foi possível conectar ao servidor. Verifique sua conexão.", "error");
+			} else {
+				setStatus("Não foi possível gerar o background: " + error.message, "error");
+			}
+
 			console.error("Erro ao gerar o fundo mágico:", error);
-			htmlCode.textContent = "Não consegui gerar o HTML. Tente novamente.";
-			cssCode.textContent = "Não consegui gerar o CSS. Tente novamente.";
-			preview.innerHTML = "";
 		} finally {
+			clearTimeout(timeoutId);
 			setLoading(false);
 		}
 	});
-
-	// 3. Exibir um indicador de carregamento enquanto a requisição está sendo processada.
-	function setLoading(isLoading) {
-		const button = document.getElementById("btn-text");
-
-		if (isLoading) {
-			button.innerHTML = "Gerando Background...";
-		} else {
-			button.innerHTML = "Gerar Background Mágico";
-		}
-	}
 });

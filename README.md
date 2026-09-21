@@ -1,40 +1,62 @@
 # 🎨 Fundo Mágico
 
-Gere **backgrounds para páginas web usando IA**: descreva em português o que você imagina
-e o app devolve o **HTML + CSS** prontos, aplicando o resultado ao vivo como prévia.
+> Descreva em português o fundo que você imagina e receba o **HTML + CSS prontos**, aplicados ao vivo como prévia na própria página.
 
-![stack](https://img.shields.io/badge/stack-HTML%20%2B%20CSS%20%2B%20JS-yellow)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+![stack](https://img.shields.io/badge/stack-HTML%20%7C%20CSS%20%7C%20JS%20puro-yellow)
+![build](https://img.shields.io/badge/build-nenhum%20(sem%20bundler)-success)
+![integração](https://img.shields.io/badge/integra%C3%A7%C3%A3o-webhook%20n8n-orange)
 
-## Como funciona
+---
+
+## 🎯 O problema
+
+Ajustar fundos de página por tentativa e erro custa tempo: você escreve um gradiente,
+salva, recarrega, olha, corrige. Quando o fundo é fruto de uma ideia dele ("quero algo
+que lembre neblina ao amanhecer"), transformar a intenção em CSS vira uma sequência
+longa de tentativas.
+
+## 💡 A solução
+
+Este app transforma uma descrição em texto direto no resultado aplicado:
+
+- Você escreve a ideia em português, sem saber CSS
+- O app envia para um workflow de automação que aciona uma IA
+- O CSS volta e é **aplicado na hora** — você vê o fundo antes de copiar
+- O HTML e o CSS ficam disponíveis em caixas de código, com botão de copiar
+
+## 🏗️ Arquitetura
 
 ```
-[Você descreve o fundo] → [Webhook n8n] → [IA gera HTML/CSS] → [Prévia aplicada na hora]
+[Você descreve o fundo]
+        ↓  POST { description }
+[Webhook n8n] → [IA gera HTML/CSS]
+        ↓  { code, style }
+[Front-end aplica o CSS ao vivo + mostra o código]
 ```
 
-1. Você escreve a descrição (ex.: *"um gradiente que vai do azul claro para o azul escuro"*).
-2. O front-end faz `POST` para um **webhook do n8n** com `{ "description": "..." }`.
-3. O workflow do n8n chama a IA e responde com `{ "code": "<html...>", "style": "<css...>" }`.
-4. A página exibe o HTML e o CSS gerados e **injeta o CSS** para você ver o fundo na hora.
+**Decisões técnicas:**
 
-## Estrutura
+| Decisão | Escolha | Por quê |
+|---|---|---|
+| Sem framework | JS puro | a aplicação é uma tela só; framework seria peso sem retorno |
+| Sem build | arquivos direto no navegador | abrir e usar, sem etapa de compilação |
+| Automação no n8n | webhook externo | trocar o modelo de IA não exige mexer no front-end |
+| Parser tolerante | aceita vários formatos | o workflow pode mudar o formato sem quebrar a interface |
 
-```
-index.html              # Página única
-src/js/index.js         # Lógica (fetch + tratamento de resposta + prévia)
-src/css/reset.css       # Reset básico
-src/css/estilos.css     # Estilos da interface
-src/css/responsivo.css  # Ajustes para telas pequenas
-src/images/bg.JPG       # Imagem de fundo padrão
-```
+## 📸 Demonstração
 
-## Rodando localmente
+Descreva algo como *"um gradiente que vai do azul claro para o azul escuro"*, clique em
+**Gerar Background Mágico** e o fundo é aplicado na página imediatamente.
 
-Como o projeto usa `fetch`, **não abra o `index.html` direto pelo disco** (`file://`) —
-alguns navegadores bloqueiam a requisição por CORS. Suba um servidor simples:
+## ▶️ Como rodar
+
+O projeto usa `fetch`, então **não abra o `index.html` direto pelo disco** (`file://`) —
+alguns navegadores bloqueiam a requisição. Suba um servidor simples:
 
 ```bash
 # Python 3
-python3 -m http.server 3000
+python -m http.server 3000
 
 # ou Node
 npx serve .
@@ -42,7 +64,27 @@ npx serve .
 
 Depois acesse `http://localhost:3000`.
 
-## Contrato da API (webhook n8n)
+## ⚙️ Configuração
+
+Toda a configuração fica no topo de `src/js/index.js`:
+
+```js
+const WEBHOOK_URL = "https://<seu-servidor>/webhook/<id>";
+const REQUEST_TIMEOUT_MS = 60000;
+```
+
+## 📂 Estrutura
+
+```
+index.html              # página única
+src/js/index.js         # integração, parser de resposta e controle de estado
+src/css/reset.css       # reset básico
+src/css/estilos.css     # interface
+src/css/responsivo.css  # telas pequenas
+src/images/bg.JPG       # imagem de fundo padrão
+```
+
+## 🔌 Contrato da integração
 
 **Requisição:**
 
@@ -59,40 +101,46 @@ Content-Type: application/json
 { "code": "<div class=\"bg\"></div>", "style": ".bg { background: linear-gradient(...) }" }
 ```
 
-O front-end também aceita variações comuns (`{ html, css }`, array `[ { ... } ]` ou
-`{ data: { ... } }`) — veja `parsePayload()` em `src/js/index.js`.
+Outros formatos também são aceitos (`{ html, css }`, array com um item, `{ data: { ... } }`),
+tratados em `parsePayload()`.
 
-## 🔧 Solução de problemas
+## 🛡️ Robustez e acessibilidade
 
-| Sintoma | Causa provável | O que fazer |
-|---|---|---|
-| "Servidor respondeu com erro HTTP 500" | **Workflow do n8n com falha de execução** | Abra o n8n → *Executions* e veja qual nó falhou (geralmente credencial da IA expirada ou nó "Respond to Webhook" mal configurado) |
-| "Não foi possível conectar ao servidor" | Rede/CORS/webhook offline | Confira se o webhook está ativo e se a origem está permitida nas opções do nó Webhook |
-| "demorou demais e foi cancelada" | IA não respondeu em 60s | Aumente `REQUEST_TIMEOUT_MS` ou otimize o prompt/modelo no n8n |
-| "resposta não contém HTML/CSS no formato esperado" | Workflow devolvendo outro formato | Ajuste o nó de resposta para `{ code, style }` |
+O que a interface faz para não falhar em silêncio:
 
-## 🐛 Correções e melhorias aplicadas
+- **Checagem de `response.ok`** — erro HTTP do servidor aparece como mensagem clara, não como tela vazia
+- **Timeout de 60s** (`AbortController`) — a interface não trava esperando resposta
+- **Botão bloqueado durante a geração** — evita cliques duplos e requisições concorrentes
+- **Limpeza do resultado anterior em caso de erro** — nenhum CSS antigo fica preso na página
+- **Sanitização do HTML recebido** (remoção de `<script>`) antes de injetar na prévia
+- **Acessibilidade** — `<label>` no campo, `aria-live` no status e `aria-busy` no botão
 
-- **Falha silenciosa corrigida**: o código antigo não checava `response.ok` — um erro 500
-  do n8n passava batido e a página ficava vazia sem avisar ninguém. Agora há mensagens
-  de erro visíveis e específicas.
-- **Timeout de requisição** (`AbortController`, 60s) — a interface não trava mais.
-- **Botão desabilitado durante a geração** — evita cliques duplos e requisições concorrentes.
-- **Limpeza do fundo anterior** em caso de erro — antes, o CSS de uma geração antiga
-  ficava preso na página.
-- **Parser tolerante de resposta** — aceita `{code,style}`, `{html,css}`, arrays do n8n
-  e respostas embrulhadas em `{data}`.
-- **Sanitização do HTML da IA** (removação de `<script>`) antes de injetar no preview.
-- **Botões "Copiar"** para o HTML e o CSS gerados.
-- **Acessibilidade**: `<label>` no campo, `aria-live` para o status e `aria-busy` no botão.
-- **URL do webhook centralizada** em uma constante no topo do JS.
+## 🧪 Testes
 
-## 💡 Próximos passos sugeridos
+Ainda não há testes automatizados — é a principal lacuna do projeto (ver roadmap).
 
-- [ ] Tornar a URL do webhook configurável por variável de ambiente/arquivo `.env`.
-- [ ] Renderizar a prévia em um `<iframe sandbox>` para isolar totalmente o CSS gerado.
-- [ ] Histórico de gerações (salvar as últimas N na `localStorage`).
-- [ ] Botão "restaurar fundo original" para limpar o resultado.
-- [ ] Testes automatizados (ex.: Playwright) cobrindo o fluxo de sucesso e de erro.
-- [ ] Verificar no n8n por que o workflow retorna 500 e adicionar tratamento de erro
-      no próprio workflow (nó de erro → responder mensagem amigável).
+## 🗺️ Roadmap
+
+- [ ] URL do webhook via arquivo `.env` em vez de constante no código
+- [ ] Prévia em `<iframe sandbox>` para isolar totalmente o CSS gerado
+- [ ] Histórico das últimas gerações em `localStorage`
+- [ ] Botão "restaurar fundo original"
+- [ ] Testes automatizados (Playwright) cobrindo o fluxo de sucesso e de erro
+
+## ⚠️ Limitações conhecidas
+
+- Depende de um workflow externo no n8n — sem ele, a geração não funciona
+- O workflow externo pode retornar HTTP 500; a interface informa, mas não corrige a origem
+- Sem testes automatizados
+
+## 🤝 Como contribuir
+
+Issues e PRs são bem-vindos. Para mudanças maiores, abra uma issue antes.
+
+## 📄 Licença
+
+MIT — veja [LICENSE](LICENSE).
+
+---
+
+**Wagner Silva Souza** · [LinkedIn](https://linkedin.com/in/wagner-silva-souza-3a840935) · [GitHub](https://github.com/Wagner-Dev-Souza)

@@ -8,8 +8,9 @@ document.addEventListener("DOMContentLoaded", function () {
 	// Configuração
 	// ---------------------------------------------------------------------
 
-	// URL do webhook. Centralizada aqui para facilitar trocar de ambiente.
-	const WEBHOOK_URL = "https://n8n.srv830193.hstgr.cloud/webhook/4096b767-f3fb-4244-bb3c-2df7994c2262";
+	// URL do webhook: vem de `src/js/config.js` (não versionado).
+	// Copie `src/js/config.example.js` para `config.js` e preencha com a sua URL.
+	const WEBHOOK_URL = (window.APP_CONFIG && window.APP_CONFIG.WEBHOOK_URL) || "";
 
 	// Tempo máximo de espera pela resposta da IA (ms). Evita que a interface
 	// fique travada para sempre quando o workflow demora ou não responde.
@@ -27,6 +28,15 @@ document.addEventListener("DOMContentLoaded", function () {
 	const copyCssBtn = document.getElementById("copy-css");
 
 	const STYLE_TAG_ID = "dynamic-style";
+
+	// Sem configuração a geração não funciona: avisa na tela e bloqueia o botão,
+	// em vez de deixar o usuário clicar e receber um erro genérico de rede.
+	if (!WEBHOOK_URL || WEBHOOK_URL.indexOf("http") !== 0) {
+		setStatus("Configure a URL do webhook em src/js/config.js (copie o config.example.js).", "error");
+		if (generateBtn) {
+			generateBtn.disabled = true;
+		}
+	}
 
 	// ---------------------------------------------------------------------
 	// Helpers

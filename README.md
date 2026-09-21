@@ -66,10 +66,24 @@ Depois acesse `http://localhost:3000`.
 
 ## ⚙️ Configuração
 
-Toda a configuração fica no topo de `src/js/index.js`:
+A URL do webhook **não fica no código**. Ela vive em um arquivo de configuração local:
+
+```bash
+cp src/js/config.example.js src/js/config.js   # depois preencha a URL no config.js
+```
 
 ```js
-const WEBHOOK_URL = "https://<seu-servidor>/webhook/<id>";
+// src/js/config.js  (não versionado — está no .gitignore)
+window.APP_CONFIG = {
+  WEBHOOK_URL: "https://<seu-servidor>/webhook/<id>"
+};
+```
+
+O `index.html` carrega o `config.js` antes do `index.js`, que lê a URL de `window.APP_CONFIG`. Sem o arquivo, a página avisa na tela que falta configurar e bloqueia o botão — em vez de falhar com erro de rede genérico.
+
+O timeout da requisição continua no topo de `src/js/index.js`:
+
+```js
 const REQUEST_TIMEOUT_MS = 60000;
 ```
 
@@ -77,6 +91,8 @@ const REQUEST_TIMEOUT_MS = 60000;
 
 ```
 index.html              # página única
+src/js/config.example.js  # modelo de configuração (versionado)
+src/js/config.js          # configuração real (NÃO versionado — ver .gitignore)
 src/js/index.js         # integração, parser de resposta e controle de estado
 src/css/reset.css       # reset básico
 src/css/estilos.css     # interface
@@ -121,7 +137,7 @@ Ainda não há testes automatizados — é a principal lacuna do projeto (ver ro
 
 ## 🗺️ Roadmap
 
-- [ ] URL do webhook via arquivo `.env` em vez de constante no código
+- [x] URL do webhook fora do código, em arquivo de configuração local (não versionado)
 - [ ] Prévia em `<iframe sandbox>` para isolar totalmente o CSS gerado
 - [ ] Histórico das últimas gerações em `localStorage`
 - [ ] Botão "restaurar fundo original"

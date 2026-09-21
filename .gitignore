@@ -1,0 +1,3 @@
+# Arquivos locais de configuração — nunca versionar.
+# Copie o config.example.js para config.js e preencha com a sua URL.
+src/js/config.js

@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  testes-e2e:
+    name: Testes ponta a ponta (Cypress)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar o Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar as dependências
+        run: npm ci
+
+      # A suíte intercepta o src/js/config.js e o webhook: roda igual em qualquer
+      # máquina, sem precisar de arquivo de configuração — nada sai para a internet.
+      - name: Subir o servidor e rodar a suíte
+        uses: cypress-io/github-action@v6
+        with:
+          start: node scripts/servidor.js 8081
+          wait-on: 'http://localhost:8081'
+          wait-on-timeout: 60
+          browser: electron
+
+      - name: Guardar as capturas de falha
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: capturas-de-falha
+          path: cypress/screenshots
+          if-no-files-found: ignore
+          retention-days: 7

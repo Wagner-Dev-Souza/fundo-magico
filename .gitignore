@@ -1,3 +1,11 @@
 # Arquivos locais de configuração — nunca versionar.
 # Copie o config.example.js para config.js e preencha com a sua URL.
 src/js/config.js
+
+# Dependências e artefatos locais
+node_modules/
+
+# Saídas da suíte de testes
+cypress/screenshots/
+cypress/videos/
+cypress/downloads/

@@ -1,0 +1,23 @@
+{
+  "name": "fundo-magico",
+  "version": "1.0.0",
+  "description": "Gera backgrounds de página a partir de uma descrição em português — com suíte de testes ponta a ponta.",
+  "private": true,
+  "scripts": {
+    "serve": "node scripts/servidor.js 8081",
+    "test": "cypress run",
+    "test:open": "cypress open"
+  },
+  "keywords": [
+    "cypress",
+    "testes-e2e",
+    "javascript",
+    "webhook"
+  ],
+  "author": "Wagner Silva Souza",
+  "license": "MIT",
+  "devDependencies": {
+    "cypress": "^13.15.0",
+    "wait-on": "^8.0.1"
+  }
+}

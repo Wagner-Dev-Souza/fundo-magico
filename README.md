@@ -2,6 +2,7 @@
 
 > Descreva em português o fundo que você imagina e receba o **HTML + CSS prontos**, aplicados ao vivo como prévia na própria página.
 
+[![CI](https://github.com/Wagner-Dev-Souza/fundo-magico/actions/workflows/ci.yml/badge.svg)](https://github.com/Wagner-Dev-Souza/fundo-magico/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![stack](https://img.shields.io/badge/stack-HTML%20%7C%20CSS%20%7C%20JS%20puro-yellow)
 ![build](https://img.shields.io/badge/build-nenhum%20(sem%20bundler)-success)
@@ -141,13 +142,55 @@ Ainda não há testes automatizados — é a principal lacuna do projeto (ver ro
 - [ ] Prévia em `<iframe sandbox>` para isolar totalmente o CSS gerado
 - [ ] Histórico das últimas gerações em `localStorage`
 - [ ] Botão "restaurar fundo original"
-- [ ] Testes automatizados (Playwright) cobrindo o fluxo de sucesso e de erro
+- [x] Testes automatizados cobrindo os fluxos de sucesso e de erro (Cypress + pipeline de CI)
+- [ ] Definir altura mínima para a caixa de prévia
+
+## 🧪 Testes
+
+**16 testes ponta a ponta em Cypress**, rodando automaticamente a cada push pelo GitHub Actions.
+
+```bash
+npm install
+npm run serve      # servidor local em http://localhost:8081
+npm test           # roda a suíte (em outro terminal)
+```
+
+### O que a suíte cobre
+
+**Estrutura da página** (`01-pagina.cy.js`) — título, campo de descrição, botão habilitado, estado inicial sem mensagem de status, prévia escondida e saídas de código.
+
+**Geração** (`02-geracao.cy.js`):
+
+- **Validação de entrada**: descrição vazia avisa o usuário e **não dispara requisição**
+- **Corpo da requisição**: a descrição digitada é a que é enviada
+- **Resultado aplicado**: prévia exibida, código mostrado e o CSS injetado na página
+- **Parser tolerante**: os **4 formatos** de resposta aceitos são testados um a um
+  (`{code,style}`, `{html,css}`, array e `{data:{...}}`)
+- **Tratamento de erro**: falha HTTP do servidor produz mensagem clara e limpa a prévia
+- **Segurança**: `<script>` recebido é removido antes de ir para a prévia, e o teste
+  confirma que ele **não foi executado**
+- **Estado de carregamento**: botão bloqueado e aviso "gerando" enquanto a resposta não chega
+
+### Por que a suíte não toca a internet
+
+Duas interceptações do Cypress sustentam os testes:
+
+1. **O próprio `src/js/config.js`** é interceptado e respondido com uma URL de teste — assim a
+   suíte roda igual em qualquer máquina e no pipeline, sem depender do arquivo de configuração local
+2. **O webhook** é interceptado — nenhuma requisição sai para o n8n
+
+Sem isso, os testes dependeriam de um workflow externo (que hoje pode falhar por conta própria)
+e ficariam instáveis. O que está sob teste é o comportamento **da nossa página**.
 
 ## ⚠️ Limitações conhecidas
 
 - Depende de um workflow externo no n8n — sem ele, a geração não funciona
 - O workflow externo pode retornar HTTP 500; a interface informa, mas não corrige a origem
-- Sem testes automatizados
+- **A caixa de prévia não tem altura mínima definida**: ela só aparece se o HTML gerado
+  tiver tamanho próprio. O efeito principal (o fundo aplicado à página) funciona de qualquer
+  forma — o impacto é visual, na caixa de prévia. Coberto por teste em
+  `cypress/e2e/02-geracao.cy.js`
+- Sem testes automatizados *(resolvido: ver seção de testes acima)*
 
 ## 🤝 Como contribuir
 
